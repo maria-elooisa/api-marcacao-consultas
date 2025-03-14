@@ -1,44 +1,40 @@
-package com.fiap.ecr.api_marcacao_consultas.controller;
+package com.fiap.ecr.api_marcacao_consultas.service;
 
 import com.fiap.ecr.api_marcacao_consultas.model.Usuario;
-import com.fiap.ecr.api_marcacao_consultas.service.UsuarioService;
-import com.fiap.ecr.api_marcacao_consultas.security.JwtTokenProvider;
-import com.fiap.ecr.api_marcacao_consultas.dto.LoginRequest;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import com.fiap.ecr.api_marcacao_consultas.repository.UsuarioRepository;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.stereotype.Service;
+import java.util.Optional;
 
-import java.util.Map;
+@Service
+public class UsuarioService {
+    private final UsuarioRepository usuarioRepository;
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-@RestController
-@RequestMapping("/usuarios")
-public class UsuarioController {
-    private final UsuarioService usuarioService;
-    private final JwtTokenProvider jwtTokenProvider;
-
-    public UsuarioController(UsuarioService usuarioService, JwtTokenProvider jwtTokenProvider) {
-        this.usuarioService = usuarioService;
-        this.jwtTokenProvider = jwtTokenProvider;
+    public UsuarioService(UsuarioRepository usuarioRepository) {
+        this.usuarioRepository = usuarioRepository;
     }
 
-    @PostMapping
-    public ResponseEntity<?> criarUsuario(@RequestBody Usuario usuario) {
-        try {
-            Usuario novoUsuario = usuarioService.salvarUsuario(usuario);
-            return ResponseEntity.ok(novoUsuario);
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+    public Usuario salvarUsuario(Usuario usuario) {
+        // Verifica se o e-mail já está cadastrado
+        Optional<Usuario> usuarioExistente = usuarioRepository.findByEmail(usuario.getEmail());
+        if (usuarioExistente.isPresent()) {
+            throw new RuntimeException("Erro: Este e-mail já está cadastrado.");
         }
+
+        // Criptografa a senha antes de salvar
+        usuario.setSenha(passwordEncoder.encode(usuario.getSenha()));
+        return usuarioRepository.save(usuario);
     }
 
-    @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest) {
-        try {
-            Usuario usuario = usuarioService.autenticar(loginRequest.getEmail(), loginRequest.getSenha());
-            String token = jwtTokenProvider.gerarToken(usuario.getEmail());
-            return ResponseEntity.ok().body(Map.of("token", token));
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Credenciais inválidas");
+    public Usuario autenticar(String email, String senha) {
+        Usuario usuario = usuarioRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
+
+        if (!passwordEncoder.matches(senha, usuario.getSenha())) {
+            throw new RuntimeException("Senha incorreta");
         }
+
+        return usuario;
     }
 }

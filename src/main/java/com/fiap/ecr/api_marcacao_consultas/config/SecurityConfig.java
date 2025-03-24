@@ -1,44 +1,50 @@
-package com.fiap.ecr.api_marcacao_consultas.controller;
+package com.fiap.ecr.api_marcacao_consultas.config;
 
-import com.fiap.ecr.api_marcacao_consultas.model.Usuario;
-import com.fiap.ecr.api_marcacao_consultas.service.UsuarioService;
+import com.fiap.ecr.api_marcacao_consultas.security.JwtAuthenticationFilter;
 import com.fiap.ecr.api_marcacao_consultas.security.JwtTokenProvider;
-import com.fiap.ecr.api_marcacao_consultas.dto.LoginRequest;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-import java.util.Map;
-
-@RestController
-@RequestMapping("/usuarios")
-public class UsuarioController {
-    private final UsuarioService usuarioService;
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
     private final JwtTokenProvider jwtTokenProvider;
 
-    public UsuarioController(UsuarioService usuarioService, JwtTokenProvider jwtTokenProvider) {
-        this.usuarioService = usuarioService;
+    public SecurityConfig(JwtTokenProvider jwtTokenProvider) {
         this.jwtTokenProvider = jwtTokenProvider;
     }
 
-    @PostMapping
-    public ResponseEntity<?> criarUsuario(@RequestBody Usuario usuario) {
-        try {
-            Usuario novoUsuario = usuarioService.salvarUsuario(usuario);
-            return ResponseEntity.ok(novoUsuario);
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
-        }
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(
+                                "/usuarios/login",
+                                "/h2-console/**" // PERMITE ACESSO AO H2
+                        ).permitAll()
+                        .requestMatchers(HttpMethod.POST, "/usuarios").permitAll() // Permite criar usuário sem autenticação
+                        .requestMatchers(HttpMethod.GET, "/usuarios").authenticated() // Requer autenticação para listar usuários
+                        .requestMatchers(HttpMethod.POST, "/consultas").authenticated()
+                        .anyRequest().authenticated()
+                )
+                // resto da configuração permanece igual
+                .headers(headers -> headers
+                        .frameOptions(frame -> frame.disable())
+                        .contentSecurityPolicy(csp -> csp
+                                .policyDirectives("script-src 'self' 'unsafe-inline'")
+                        )
+                )
+                .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class)
+                .formLogin(form -> form.disable())
+                .httpBasic(httpBasic -> httpBasic.disable());
+
+        return http.build();
     }
 
-    @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest) {
-        try {
-            Usuario usuario = usuarioService.autenticar(loginRequest.getEmail(), loginRequest.getSenha());
-            String token = jwtTokenProvider.gerarToken(usuario.getEmail());
-            return ResponseEntity.ok().body(Map.of("token", token));
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Credenciais inválidas");
-        }
-    }
 }

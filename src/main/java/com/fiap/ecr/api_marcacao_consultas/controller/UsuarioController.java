@@ -1,40 +1,91 @@
-package com.fiap.ecr.api_marcacao_consultas.service;
+package com.fiap.ecr.api_marcacao_consultas.controller;
 
 import com.fiap.ecr.api_marcacao_consultas.model.Usuario;
-import com.fiap.ecr.api_marcacao_consultas.repository.UsuarioRepository;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.stereotype.Service;
+import com.fiap.ecr.api_marcacao_consultas.service.UsuarioService;
+import com.fiap.ecr.api_marcacao_consultas.security.JwtTokenProvider;
+import com.fiap.ecr.api_marcacao_consultas.dto.LoginRequest;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
-@Service
-public class UsuarioService {
-    private final UsuarioRepository usuarioRepository;
-    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+@RestController
+@RequestMapping("/usuarios")
+public class UsuarioController {
+    private final UsuarioService usuarioService;
+    private final JwtTokenProvider jwtTokenProvider;
 
-    public UsuarioService(UsuarioRepository usuarioRepository) {
-        this.usuarioRepository = usuarioRepository;
+    public UsuarioController(UsuarioService usuarioService, JwtTokenProvider jwtTokenProvider) {
+        this.usuarioService = usuarioService;
+        this.jwtTokenProvider = jwtTokenProvider;
     }
 
-    public Usuario salvarUsuario(Usuario usuario) {
-        // Verifica se o e-mail já está cadastrado
-        Optional<Usuario> usuarioExistente = usuarioRepository.findByEmail(usuario.getEmail());
-        if (usuarioExistente.isPresent()) {
-            throw new RuntimeException("Erro: Este e-mail já está cadastrado.");
-        }
-
-        // Criptografa a senha antes de salvar
-        usuario.setSenha(passwordEncoder.encode(usuario.getSenha()));
-        return usuarioRepository.save(usuario);
+    @GetMapping
+    public ResponseEntity<List<Usuario>> listarUsuarios() {
+        List<Usuario> usuarios = usuarioService.listarUsuarios();
+        return ResponseEntity.ok(usuarios);
     }
 
-    public Usuario autenticar(String email, String senha) {
-        Usuario usuario = usuarioRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
+    @GetMapping("/{id}")
+    public ResponseEntity<?> buscarUsuarioPorId(@PathVariable Long id) {
+        Optional<Usuario> usuario = usuarioService.buscarUsuarioPorId(id);
+        return usuario.map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
 
-        if (!passwordEncoder.matches(senha, usuario.getSenha())) {
-            throw new RuntimeException("Senha incorreta");
+    @GetMapping("/medicos")
+    public ResponseEntity<List<Usuario>> listarMedicos(
+            @RequestParam(required = false) String especialidade) {
+        List<Usuario> medicos;
+        if (especialidade != null && !especialidade.isEmpty()) {
+            medicos = usuarioService.buscarMedicosPorEspecialidade(especialidade);
+        } else {
+            medicos = usuarioService.listarMedicos();
         }
+        return ResponseEntity.ok(medicos);
+    }
 
-        return usuario;
+    @PostMapping
+    public ResponseEntity<?> criarUsuario(@RequestBody Usuario usuario) {
+        try {
+            Usuario novoUsuario = usuarioService.salvarUsuario(usuario);
+            return ResponseEntity.ok(novoUsuario);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<?> atualizarUsuario(@PathVariable Long id, @RequestBody Usuario usuario) {
+        try {
+            Usuario usuarioAtualizado = usuarioService.atualizarUsuario(id, usuario);
+            return ResponseEntity.ok(usuarioAtualizado);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> excluirUsuario(@PathVariable Long id) {
+        try {
+            usuarioService.excluirUsuario(id);
+            return ResponseEntity.noContent().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest) {
+        try {
+            Usuario usuario = usuarioService.autenticar(loginRequest.getEmail(), loginRequest.getSenha());
+            String token = jwtTokenProvider.gerarToken(usuario.getEmail());
+            return ResponseEntity.ok().body(Map.of("token", token));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Credenciais inválidas");
+        }
     }
 }

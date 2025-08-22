@@ -1,4 +1,4 @@
-package com.fiap.ecr.api_marcacao_consultas;
+package com.fiap.eca.api_marcacao_consultas;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

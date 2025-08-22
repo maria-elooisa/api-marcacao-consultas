@@ -1,4 +1,4 @@
-package com.fiap.ecr.api_marcacao_consultas.dto;
+package com.fiap.eca.api_marcacao_consultas.dto;
 
 import lombok.Data;
 

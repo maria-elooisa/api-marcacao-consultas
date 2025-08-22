@@ -1,6 +1,6 @@
-package com.fiap.ecr.api_marcacao_consultas.service;
-import com.fiap.ecr.api_marcacao_consultas.model.Consulta;
-import com.fiap.ecr.api_marcacao_consultas.repository.ConsultaRepository;
+package com.fiap.eca.api_marcacao_consultas.service;
+import com.fiap.eca.api_marcacao_consultas.model.Consulta;
+import com.fiap.eca.api_marcacao_consultas.repository.ConsultaRepository;
 import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;

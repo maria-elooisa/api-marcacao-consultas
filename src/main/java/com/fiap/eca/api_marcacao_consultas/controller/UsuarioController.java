@@ -1,9 +1,9 @@
-package com.fiap.ecr.api_marcacao_consultas.controller;
+package com.fiap.eca.api_marcacao_consultas.controller;
 
-import com.fiap.ecr.api_marcacao_consultas.model.Usuario;
-import com.fiap.ecr.api_marcacao_consultas.service.UsuarioService;
-import com.fiap.ecr.api_marcacao_consultas.security.JwtTokenProvider;
-import com.fiap.ecr.api_marcacao_consultas.dto.LoginRequest;
+import com.fiap.eca.api_marcacao_consultas.model.Usuario;
+import com.fiap.eca.api_marcacao_consultas.service.UsuarioService;
+import com.fiap.eca.api_marcacao_consultas.security.JwtTokenProvider;
+import com.fiap.eca.api_marcacao_consultas.dto.LoginRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -86,6 +86,35 @@ public class UsuarioController {
             return ResponseEntity.ok().body(Map.of("token", token));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Credenciais inválidas");
+        }
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<?> getCurrentUser(@RequestHeader("Authorization") String authHeader) {
+        try {
+            // Remove "Bearer " do header
+            String token = authHeader.substring(7);
+
+            // Extrai o email do token
+            String email = jwtTokenProvider.obterEmailDoToken(token);
+
+            // Busca o usuário pelo email
+            Usuario usuario = usuarioService.buscarPorEmail(email);
+
+            return ResponseEntity.ok(usuario);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Token inválido");
+        }
+    }
+
+    // ⚠️ ENDPOINT TEMPORÁRIO APENAS PARA TESTES - REMOVER EM PRODUÇÃO
+    @PostMapping("/reset-senhas-teste")
+    public ResponseEntity<?> resetarSenhasParaTeste() {
+        try {
+            String senhasTeste = usuarioService.resetarSenhasParaTeste();
+            return ResponseEntity.ok().body(Map.of("message", senhasTeste));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         }
     }
 }
